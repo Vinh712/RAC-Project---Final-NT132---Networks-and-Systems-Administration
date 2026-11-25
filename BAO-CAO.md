@@ -40,7 +40,16 @@ So sánh service phục vụ trên một và hai instance. Giữ cả hai VM ho�
 
 Thu TPS, p50/p95, tỷ lệ request gặp lỗi, phân bố giao dịch, RAM, swap và I/O host. Đo thời gian phục hồi bằng đồng hồ monotonic trên host, từ lúc lệnh cắt nguồn được xác nhận đến commit thành công tiếp theo của client bị ảnh hưởng. Dùng khóa chính `request_id` để tra lại kết quả khi client mất xác nhận commit.
 
-Đã hoàn tất sáu lượt hợp lệ. Bản nộp trình bày thiết kế phép đo và kết quả chức năng. Số liệu hiệu năng chi tiết được lưu nội bộ theo điều khoản Oracle. [Oracle Technology Network License Terms](https://www.oracle.com/downloads/licenses/oracle-license.html)
+### Xác minh các lượt benchmark
+
+| Cấu hình service | Lượt hoàn tất | Instance phục vụ được xác nhận trong từng lượt |
+| --- | --- | --- |
+| Một instance | 3/3 | `RACLAB1` ở cả ba lượt |
+| Hai instance | 3/3 | `RACLAB1` và `RACLAB2` ở cả ba lượt |
+
+Mỗi lượt được chấp nhận khi dùng đủ 12 worker, warm-up 60 giây, đo 180 giây và có giao dịch trên đúng các instance dự kiến. Sau lượt cuối, service trở lại cả hai instance và client trên host đã commit thêm một giao dịch qua SCAN.
+
+Số đo và biểu đồ hiệu năng được lưu trong báo cáo nội bộ. Điều khoản OTN Developer yêu cầu Oracle đồng ý trước khi công bố kết quả benchmark. [Oracle Technology Network Developer License Terms](https://www.oracle.com/downloads/licenses/standard-license.html)
 
 ## Giới hạn và kết luận
 

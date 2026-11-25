@@ -22,7 +22,7 @@ flowchart LR
 | Database, PDB và application service | `RACLAB`, `APPPDB`, `racapp.rac.test:1521` |
 | Thiết bị ASM trong guest | `/dev/rac-asm01`, serial `RAC_ASM01`, file `/var/lib/libvirt/images/rac-lab/rac-asm.raw` |
 
-Xem [báo cáo đồ án](BAO-CAO.md) để đọc kết quả triển khai, thử cắt nguồn và tái gia nhập cụm.
+Xem [báo cáo đồ án](BAO-CAO.md) để đọc kết quả triển khai, thử cắt nguồn và tái gia nhập cụm. Phần [xác minh benchmark](BAO-CAO.md#xác-minh-các-lượt-benchmark) ghi lại số lượt hoàn tất và các instance phục vụ trong từng cấu hình.
 
 ## Kiểm tra và dựng lại
 
