@@ -1,0 +1,17 @@
+<network>
+  <name>rac-lab-public</name>
+  <uuid>757b3255-0c01-4dbc-8400-dd28b45d7695</uuid>
+  <forward mode="nat"/>
+  <bridge name="virbr-racpub" stp="on" delay="0"/>
+  <domain name="rac.test" localOnly="yes"/>
+  <dns forwardPlainNames="no">
+    <host ip="192.168.191.11"><hostname>rac1.rac.test</hostname><hostname>rac1</hostname></host>
+    <host ip="192.168.191.12"><hostname>rac2.rac.test</hostname><hostname>rac2</hostname></host>
+    <host ip="192.168.191.21"><hostname>rac1-vip.rac.test</hostname><hostname>rac1-vip</hostname></host>
+    <host ip="192.168.191.22"><hostname>rac2-vip.rac.test</hostname><hostname>rac2-vip</hostname></host>
+    <host ip="192.168.191.31"><hostname>rac-scan.rac.test</hostname></host>
+    <host ip="192.168.191.32"><hostname>rac-scan.rac.test</hostname></host>
+    <host ip="192.168.191.33"><hostname>rac-scan.rac.test</hostname></host>
+  </dns>
+  <ip address="192.168.191.1" prefix="24"/>
+</network>

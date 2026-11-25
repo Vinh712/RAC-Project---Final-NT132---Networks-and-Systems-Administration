@@ -1,0 +1,25 @@
+whenever oserror exit failure
+whenever sqlerror exit sql.sqlcode
+set echo off verify off
+alter pluggable database APPPDB save state instances=all;
+alter session set container=APPPDB;
+
+create tablespace RACDATA datafile size 64M autoextend on next 64M maxsize 2G;
+create user RACDATA no authentication default tablespace RACDATA quota 2G on RACDATA;
+create table RACDATA.REQUESTS (
+    request_id varchar2(36 char) primary key,
+    payload varchar2(160 char) not null,
+    writer_instance varchar2(30 char) not null,
+    written_at timestamp with time zone default systimestamp not null
+);
+create table RACDATA.BENCH_REQUESTS (
+    request_id varchar2(36 char) primary key,
+    payload varchar2(160 char) not null,
+    writer_instance varchar2(30 char) not null,
+    written_at timestamp with time zone default systimestamp not null
+);
+create user RACAPP identified by "@RACAPP@";
+grant create session to RACAPP;
+grant select, insert on RACDATA.REQUESTS to RACAPP;
+grant select, insert on RACDATA.BENCH_REQUESTS to RACAPP;
+exit

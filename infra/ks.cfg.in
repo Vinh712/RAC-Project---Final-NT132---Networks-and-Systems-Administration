@@ -1,0 +1,51 @@
+#version=RHEL7
+install
+cdrom
+text
+lang en_US.UTF-8
+keyboard us
+timezone Asia/Ho_Chi_Minh --utc
+rootpw --lock
+user --name=racadmin --groups=wheel --lock
+sshkey --username=racadmin "@SSH_KEY@"
+auth --enableshadow --passalgo=sha512
+selinux --enforcing
+services --enabled=sshd,chronyd,firewalld --disabled=kdump
+firewall --enabled --service=ssh
+network --device=@PUBLIC_MAC@ --bootproto=static --ip=@PUBLIC_IP@ --netmask=255.255.255.0 --gateway=192.168.191.1 --nameserver=192.168.191.1 --hostname=@NODE@.rac.test --activate --onboot=yes --noipv6
+network --device=@PRIVATE_MAC@ --bootproto=static --ip=@PRIVATE_IP@ --netmask=255.255.255.0 --nodefroute --activate --onboot=yes --noipv6
+ignoredisk --only-use=vda
+zerombr
+clearpart --all --initlabel --drives=vda
+bootloader --location=mbr --boot-drive=vda --append="console=ttyS0,115200n8"
+part /boot --fstype=xfs --size=1024 --ondisk=vda
+part swap --size=10240 --ondisk=vda
+part / --fstype=xfs --size=30720 --grow --ondisk=vda
+firstboot --disable
+reboot
+
+%packages
+@core
+chrony
+openssh-server
+sudo
+firewalld
+bind-utils
+unzip
+net-tools
+sysstat
+%end
+
+%post --erroronfail --log=/root/rac-kickstart-post.log
+set -eu
+printf '%s\n' 'racadmin ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/90-racadmin
+chmod 0440 /etc/sudoers.d/90-racadmin
+visudo -cf /etc/sudoers
+sed -ri '/^[[:space:]#]*PasswordAuthentication[[:space:]]/d; /^[[:space:]#]*PermitRootLogin[[:space:]]/d' /etc/ssh/sshd_config
+printf '\nPasswordAuthentication no\nPermitRootLogin no\n' >> /etc/ssh/sshd_config
+
+# Dùng RHCK 3.10 của DVD để thử bản Grid 19.3 ban đầu.
+rhck=$(find /boot -maxdepth 1 -name 'vmlinuz-3.10.*.el7.x86_64' -print -quit)
+test -n "$rhck"
+grubby --set-default "$rhck"
+%end

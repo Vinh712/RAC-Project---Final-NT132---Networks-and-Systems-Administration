@@ -1,0 +1,5 @@
+<pool type="dir">
+  <name>rac-lab-storage</name>
+  <uuid>a31f4bdf-86f6-4f6a-a85a-27902c210cac</uuid>
+  <target><path>/var/lib/libvirt/images/rac-lab</path></target>
+</pool>

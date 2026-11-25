@@ -1,0 +1,5 @@
+<network>
+  <name>rac-lab-private</name>
+  <uuid>172bb4f6-a8a9-4bfc-91b5-aca84397ae35</uuid>
+  <bridge name="virbr-racpriv" stp="on" delay="0"/>
+</network>

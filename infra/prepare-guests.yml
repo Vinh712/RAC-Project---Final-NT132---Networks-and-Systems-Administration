@@ -1,0 +1,232 @@
+---
+- name: Chuẩn bị Oracle Linux cho Grid và Database
+  hosts: rac
+  become: true
+  any_errors_fatal: true
+  vars:
+    oracle_groups:
+      asmadmin: 54327
+      asmdba: 54328
+      asmoper: 54329
+    oracle_paths:
+      - { path: /u01/app/19c/grid, owner: grid }
+      - { path: /u01/app/grid, owner: grid }
+      - { path: /u01/app/oracle/product/19c/dbhome_1, owner: oracle }
+      - { path: /u01/app/oraInventory, owner: grid }
+  tasks:
+    - name: Cài RPM chuẩn bị Oracle 19c từ kho công khai
+      ansible.builtin.yum:
+        name:
+          - oracle-database-preinstall-19c
+          - acl
+        disablerepo: "*"
+        enablerepo: ol7_latest
+        state: present
+      vars:
+        ansible_command_timeout: 240
+
+    - name: Tạo các nhóm ASM cùng GID trên hai node
+      ansible.builtin.group:
+        name: "{{ item.key }}"
+        gid: "{{ item.value }}"
+      loop: "{{ oracle_groups | dict2items }}"
+
+    - name: Tạo tài khoản Grid
+      ansible.builtin.user:
+        name: grid
+        group: oinstall
+        groups: asmadmin,asmdba,asmoper
+        append: true
+        shell: /bin/bash
+        create_home: true
+
+    - name: Thêm nhóm truy cập ASM cho Oracle Database
+      ansible.builtin.user:
+        name: oracle
+        groups: asmdba
+        append: true
+
+    - name: Chuẩn bị các thư mục cha do root sở hữu
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      loop: [/u01, /u01/app, /u01/app/19c]
+
+    - name: Tạo các thư mục Oracle
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: oinstall
+        mode: "0775"
+      loop: "{{ oracle_paths }}"
+
+    - name: Dùng giới hạn của RPM preinstall cho Grid
+      ansible.builtin.shell: |
+        set -o pipefail
+        awk '$1 == "oracle" { $1="grid"; print }' /etc/security/limits.d/oracle-database-preinstall-19c.conf > /etc/security/limits.d/90-rac-grid.conf
+        test -s /etc/security/limits.d/90-rac-grid.conf
+      args:
+        executable: /bin/bash
+        creates: /etc/security/limits.d/90-rac-grid.conf
+
+    - name: Xác minh serial, dung lượng và thiết bị gốc trước khi đổi quyền ASM
+      ansible.builtin.shell: |
+        set -eu
+        asm=/dev/disk/by-id/virtio-RAC_ASM01
+        os=/dev/disk/by-id/virtio-RAC_OS_{{ inventory_hostname | upper }}
+        test -b "$asm"
+        test -b "$os"
+        test "$(readlink -f "$asm")" = /dev/vdb
+        test "$(readlink -f "$os")" = /dev/vda
+        test "$(cat /sys/class/block/vdb/serial)" = RAC_ASM01
+        test "$(blockdev --getsize64 "$asm")" = 64424509440
+        test "$(lsblk -nr -o NAME /dev/vdb | wc -l)" = 1
+        test "$(findmnt -n -o SOURCE / | sed -E 's/[0-9]+$//')" = /dev/vda
+        lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+        cat /sys/class/block/vda/serial; echo
+        cat /sys/class/block/vdb/serial; echo
+      args:
+        executable: /bin/bash
+      changed_when: false
+      register: asm_check
+
+    - name: Hiển thị thiết bị và mountpoint
+      ansible.builtin.debug:
+        var: asm_check.stdout_lines
+
+    - name: Định danh ASM qua serial virtio
+      ansible.builtin.copy:
+        dest: /etc/udev/rules.d/99-rac-asm.rules
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          SUBSYSTEM=="block", KERNEL=="vd*", ENV{ID_SERIAL}=="RAC_ASM01", OWNER="grid", GROUP="asmadmin", MODE="0660", SYMLINK+="rac-asm01"
+      register: asm_rule
+
+    - name: Nạp quy tắc ASM
+      ansible.builtin.shell: |
+        set -eu
+        udevadm control --reload-rules
+        udevadm trigger --action=change /sys/block/vdb
+        udevadm settle
+      when: asm_rule.changed
+
+    - name: Xác minh Grid nhìn thấy đúng ASM
+      ansible.builtin.command: stat -Lc "%U %G %a %t:%T" /dev/rac-asm01
+      changed_when: false
+      register: asm_permissions
+      failed_when: not asm_permissions.stdout.startswith('grid asmadmin 660 ')
+
+    - name: Xác định interface riêng theo địa chỉ trong inventory
+      ansible.builtin.command: /sbin/ip -o -4 addr show to {{ private_ip }}/32
+      register: private_interface
+      changed_when: false
+
+    - name: Đọc tên connection NetworkManager của interconnect
+      ansible.builtin.command: /usr/bin/nmcli -g GENERAL.CONNECTION device show {{ private_interface.stdout.split()[1] }}
+      register: private_connection
+      changed_when: false
+
+    - name: Giữ zone interconnect qua lần khởi động sau
+      ansible.builtin.command:
+        argv: [/usr/bin/nmcli, connection, modify, "{{ private_connection.stdout }}", connection.zone, trusted]
+
+    - name: Cho phép interconnect RAC trong mạng riêng
+      ansible.posix.firewalld:
+        zone: trusted
+        interface: "{{ private_interface.stdout.split()[1] }}"
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Mở listener cho các địa chỉ trong subnet client
+      ansible.posix.firewalld:
+        zone: public
+        rich_rule: 'rule family="ipv4" source address="192.168.191.0/24" port port="1521" protocol="tcp" accept'
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Cho phép kiểm tra UDP multicast Oracle trong subnet client
+      ansible.posix.firewalld:
+        zone: public
+        rich_rule: 'rule family="ipv4" source address="192.168.191.0/24" destination address="224.0.0.251/32" protocol value="udp" accept'
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Thêm định danh interconnect vào hosts guest
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        marker: "# {mark} RAC LAB"
+        block: |
+          192.168.192.11 rac1-priv.rac.test rac1-priv
+          192.168.192.12 rac2-priv.rac.test rac2-priv
+
+    - name: Kiểm tra đồng bộ thời gian
+      ansible.builtin.command: chronyc waitsync 12 0.1
+      changed_when: false
+
+    - name: Tạo thư mục SSH của Grid và Oracle
+      ansible.builtin.file:
+        path: "/home/{{ item }}/.ssh"
+        owner: "{{ item }}"
+        group: oinstall
+        mode: "0700"
+        state: directory
+      loop: [grid, oracle]
+
+    - name: Tạo khóa SSH riêng cho từng tài khoản Oracle ở mỗi node
+      become_user: "{{ item }}"
+      ansible.builtin.command:
+        argv: [ssh-keygen, -q, -t, rsa, -b, "3072", -N, "", -f, "/home/{{ item }}/.ssh/id_rsa"]
+        creates: "/home/{{ item }}/.ssh/id_rsa"
+      loop: [grid, oracle]
+
+    - name: Đọc khóa công khai của tài khoản Oracle
+      ansible.builtin.slurp:
+        src: "/home/{{ item }}/.ssh/id_rsa.pub"
+      loop: [grid, oracle]
+      register: oracle_ssh_keys
+
+    - name: Đọc khóa host công khai
+      ansible.builtin.slurp:
+        src: /etc/ssh/ssh_host_ed25519_key.pub
+      register: ssh_server_key
+
+    - name: Cho phép SSH giữa hai node cho từng tài khoản Oracle
+      ansible.builtin.copy:
+        dest: "/home/{{ item }}/.ssh/authorized_keys"
+        owner: "{{ item }}"
+        group: oinstall
+        mode: "0600"
+        content: |
+          {% for host in groups['rac'] %}
+          {% for key in hostvars[host].oracle_ssh_keys.results if key.item == item %}
+          {{ key.content | b64decode | trim }}
+          {% endfor %}
+          {% endfor %}
+      loop: [grid, oracle]
+
+    - name: Ghi khóa máy chủ đã đọc qua SSH của lab
+      ansible.builtin.copy:
+        dest: "/home/{{ item }}/.ssh/known_hosts"
+        owner: "{{ item }}"
+        group: oinstall
+        mode: "0644"
+        content: |
+          {% for host in groups['rac'] %}
+          {{ host }},{{ host }}.rac.test,{{ hostvars[host].ansible_host }} {{ (hostvars[host].ssh_server_key.content | b64decode).split()[:2] | join(' ') }}
+          {% endfor %}
+      loop: [grid, oracle]
+
+    - name: Xác minh SSH tự động cho Grid và Oracle
+      become_user: "{{ item.0 }}"
+      ansible.builtin.command: "ssh -o BatchMode=yes {{ item.1 }} hostname -f"
+      loop: "{{ ['grid', 'oracle'] | product(groups['rac']) | list }}"
+      changed_when: false

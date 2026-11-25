@@ -1,0 +1,16 @@
+/media/
+/state/
+/evidence/
+/.venv/
+/results/
+__pycache__/
+.env
+*.rsp
+*.iso
+*.zip
+*.qcow2
+*.raw
+*.pem
+*.key
+*.log
+*.jsonl
