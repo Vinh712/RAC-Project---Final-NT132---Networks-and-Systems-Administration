@@ -24,6 +24,11 @@ flowchart LR
 
 Xem [báo cáo đồ án](BAO-CAO.md) để đọc kết quả triển khai, thử cắt nguồn và tái gia nhập cụm.
 
+## Tài liệu bàn giao
+
+- [Báo cáo QTM13 (PDF)](tai-lieu/QTM13-Bao-cao.pdf)
+- [Slide QTM13 (PowerPoint, 17 slide, có ghi chú thuyết trình)](tai-lieu/QTM13-Thuyet-trinh.pptx)
+
 ## Báo cáo benchmark
 
 So sánh service RAC phục vụ trên một và hai instance. Cả hai VM hoạt động trong suốt phép đo. Mỗi lượt dùng **12 worker**, **60 giây warm-up** và **180 giây đo**. Hai cấu hình dùng cùng mẫu payload và bảng thử được làm trống trước mỗi lượt.
