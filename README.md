@@ -95,20 +95,3 @@ Dừng workload trước khi tắt lab. Sau đó dừng database có kiểm soá
 ## Bản sao trước khi thêm node
 
 Chạy `./scripts/backup-single-node.sh` khi cluster mới có `rac1` và client đã commit. Script dừng database, Clusterware và cả hai guest, sau đó chép hai đĩa hệ điều hành, file ASM, XML mạng và hai VM. `state/single-node-backup` trỏ đến thư mục bản sao. Kiểm tra `sha256sum -c SHA256SUMS` từ thư mục đó trước khi dùng. Bộ ba đĩa phải được phục hồi cùng nhau trong một phiên lab đã dừng.
-
-## Sự cố đã xử lý
-
-- `/dev/kvm` và socket libvirt trả lỗi quyền vì VS Code được mở từ phiên đăng nhập cũ. Nạp các nhóm đã có với `sg` cho lần chạy thử. QMP trả `enabled=true` và `present=true`. `virt-host-validate` còn cảnh báo cgroup devices, IOMMU passthrough và secure guest. Libvirt đã chạy được cả hai VM dùng KVM.
-- Lệnh `virsh pool-list --name` thêm khoảng trắng sau tên pool. Script chuẩn hóa đầu ra để dùng lại pool đang chạy.
-- Sau Kickstart, `virt-install --noautoconsole` để VM tắt khi trình cài kết thúc. Script chờ trạng thái shutdown rồi chạy VM từ đĩa hệ điều hành.
-- `lsblk` của Oracle Linux 7 có thể để trống cột serial của đĩa virtio. Script đọc `/sys/class/block/vdb/serial`, kiểm tra đường dẫn by-id, kích thước, thiết bị mount ở `/` và XML libvirt.
-- CVU báo `PRVG-10467` trước khi có inventory. Lệnh trước cài đặt chỉ định tường minh nhóm `oinstall` và các nhóm ASM.
-- CVU báo `PRVF-5636` vì DNS treo khi hỏi tên ngắn không tồn tại. `forwardPlainNames="no"` trên mạng lab trả NXDOMAIN ngay. Giữ nguyên tên DNS ở SCAN và các VIP.
-- CVU báo `PRVG-11138` và `PRVG-11352` khi zone private bị NetworkManager đưa về `public` sau reboot. Lưu `connection.zone=trusted` ở connection interconnect, cho phép UDP multicast kiểm tra Oracle theo địa chỉ đích trên subnet client rồi chạy lại CVU.
-
-- CVU trước khi thêm node cần kết nối TCP giữa các địa chỉ public của hai node và VIP/SCAN. Ngoại lệ firewalld có giới hạn địa chỉ và thời gian, rồi được rút khi script thêm node kết thúc. CVU vẫn cảnh báo UUID nhãn đĩa virtio whole-disk. Hai guest có cùng SHA-256 của header ASM và trỏ cùng file trên host.
-- DBCA silent trên bản 19.3 hỏi mật khẩu DBSNMP khi response file thiếu trường này. Thêm mật khẩu riêng vào response file rồi chạy lại pha DBCA.
-
-- Gọi `crsctl` bằng root trên rac2 trước root script có thể tạo thư mục chẩn đoán do root sở hữu. Trong lần triển khai này, việc đó làm OUI báo `INS-32250`. Tôi trả quyền thư mục cho `grid:oinstall` và chuyển Grid Home cùng inventory cài dở trên rac2 sang thư mục khôi phục trước khi chạy lại.
-
-- Khi chạy các kết nối ngắn nối tiếp, SCAN với mục tiêu cân bằng `LONG` từng trả mọi kết nối về rac2 trong một lượt probe. Để kiểm chứng đọc chéo và xác định đúng phiên trước khi cắt nguồn, client chọn `INSTANCE_NAME` qua cùng service và đọc lại danh tính instance. Khi thử kết nối lại sau lỗi, client dùng service và để SCAN chọn instance.
