@@ -22,7 +22,20 @@ flowchart LR
 | Database, PDB và application service | `RACLAB`, `APPPDB`, `racapp.rac.test:1521` |
 | Thiết bị ASM trong guest | `/dev/rac-asm01`, serial `RAC_ASM01`, file `/var/lib/libvirt/images/rac-lab/rac-asm.raw` |
 
-Xem [báo cáo đồ án](BAO-CAO.md) để đọc kết quả triển khai, thử cắt nguồn và tái gia nhập cụm. Phần [xác minh benchmark](BAO-CAO.md#xác-minh-các-lượt-benchmark) ghi lại số lượt hoàn tất và các instance phục vụ trong từng cấu hình.
+Xem [báo cáo đồ án](BAO-CAO.md) để đọc kết quả triển khai, thử cắt nguồn và tái gia nhập cụm.
+
+## Báo cáo benchmark
+
+So sánh service RAC phục vụ trên một và hai instance. Cả hai VM hoạt động trong suốt phép đo. Mỗi lượt dùng **12 worker**, **60 giây warm-up** và **180 giây đo**. Hai cấu hình dùng cùng mẫu payload và bảng thử được làm trống trước mỗi lượt.
+
+| Cấu hình service | Lượt hợp lệ | Instance thực tế phục vụ |
+| --- | --- | --- |
+| Một instance | 3/3 | `RACLAB1` trong cả ba lượt |
+| Hai instance | 3/3 | `RACLAB1` và `RACLAB2` trong cả ba lượt |
+
+Client ghi nhận TPS, p50/p95, tỷ lệ request gặp lỗi và phân bố giao dịch theo instance. Host ghi RAM, swap và I/O trong mỗi lượt. Sau **6/6 lượt hợp lệ**, service chạy lại trên cả hai instance và client commit thành công qua SCAN.
+
+Xem thêm [phương pháp đo và tiêu chí xác minh](BAO-CAO.md#phương-pháp-đo). Số đo và biểu đồ hiệu năng lưu trong báo cáo nội bộ theo [điều khoản OTN Developer của Oracle](https://www.oracle.com/downloads/licenses/standard-license.html).
 
 ## Kiểm tra và dựng lại
 
